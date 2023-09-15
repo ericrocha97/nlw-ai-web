@@ -1,4 +1,6 @@
-import { Github, FileVideo, Upload, Wand2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Github, Wand2 } from "lucide-react";
+import { useCompletion } from "ai/react";
 
 import { ModeToggle } from "./components/mode-toggle";
 import { ThemeProvider } from "./components/theme-provider";
@@ -14,8 +16,38 @@ import {
   SelectValue,
 } from "./components/ui/select";
 import { Slider } from "./components/ui/slider";
+import { VideoInputForm } from "./components/video-input-form";
+import { PromptSelect } from "./components/prompt-select";
+
+const URL = import.meta.env.VITE_SERVER_URL;
 
 export function App() {
+  const [temperature, setTemperature] = useState<number>(0.5);
+  const [videoId, setVideoId] = useState<string | null>(null);
+  const [aiCompletion, setAiCompletion] = useState<string>("");
+
+  const {
+    input,
+    setInput,
+    handleInputChange,
+    handleSubmit,
+    completion,
+    isLoading,
+  } = useCompletion({
+    api: `${URL}/ai/complete`,
+    body: {
+      videoId,
+      temperature,
+    },
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+
+  useEffect(() => {
+    setAiCompletion(completion);
+  }, [completion]);
+
   return (
     <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
       <div className="min-h-screen flex flex-col">
@@ -29,10 +61,12 @@ export function App() {
 
             <Separator orientation="vertical" className="h-6" />
 
-            <Button variant={"outline"}>
-              <Github className="w-4 h-4 mr-2" />
-              Github
-            </Button>
+            <a href="https://github.com/ericrocha97" target="_blank">
+              <Button variant={"outline"}>
+                <Github className="w-4 h-4 mr-2" />
+                Github
+              </Button>
+            </a>
 
             <ModeToggle />
           </nav>
@@ -44,12 +78,15 @@ export function App() {
               <Textarea
                 className="resize-none p-4 leading-relaxed"
                 placeholder="Inclua o prompt para a IA..."
+                value={input}
+                onChange={handleInputChange}
               />
 
               <Textarea
                 className="resize-none p-4 leading-relaxed"
-                placeholder="Resultado gerado pela IA"
+                placeholder="Resultado gerado pela IA..."
                 readOnly
+                value={aiCompletion}
               />
             </section>
 
@@ -62,55 +99,20 @@ export function App() {
           </article>
 
           <aside className="w-80 space-y-6">
-            <form className="space-y-4">
-              <label
-                htmlFor="video"
-                className="border flex rounded-md aspect-video cursor-pointer border-dashed text-sm flex-col gap-2 items-center justify-center text-muted-foreground hover:bg-primary/5"
-              >
-                <FileVideo className="w-4 h-4" />
-                Selecione um vídeo
-              </label>
+            <VideoInputForm
+              onVideoUploaded={setVideoId}
+              onVideoRemoved={() => {
+                setVideoId(null);
+                setAiCompletion("");
+              }}
+            />
 
-              <input
-                type="file"
-                id="video"
-                accept="video/mp4"
-                className="sr-only"
-              />
+            <Separator />
 
-              <Separator />
-
-              <section className="space-y-2">
-                <Label htmlFor="transcription_prompt">
-                  Prompt de transcrição
-                </Label>
-                <Textarea
-                  id="transcription_prompt"
-                  className="h-20 leading-relaxed resize-none"
-                  placeholder="Inclua palavras-chave mencionadas no vídeo separadas por vírgula (,)"
-                />
-              </section>
-
-              <Button type="submit" className="w-full">
-                Carregar video
-                <Upload className="w-4 h-4 ml-2" />
-              </Button>
-            </form>
-
-            <form className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-4">
               <section className="space-y-2">
                 <Label>Prompt</Label>
-                <Select>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione um prompt..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="title">Título do YouTube</SelectItem>
-                    <SelectItem value="description">
-                      Descrição do YouTube
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
+                <PromptSelect onPromptSelected={setInput} />
               </section>
 
               <section className="space-y-2">
@@ -124,26 +126,49 @@ export function App() {
                   </SelectContent>
                 </Select>
                 <span className="block text-sm text-muted-foreground italic">
-                  Você poderá customizar essa opção em breve
+                  Você poderá customizar essa opção em breve.
                 </span>
               </section>
 
               <Separator />
 
               <section className="space-y-4">
-                <Label>Temperatura</Label>
-                <Slider min={0} max={1} step={0.1} />
+                <div className="flex items-center justify-between">
+                  <Label>Temperatura</Label>
+                  <div>{temperature}</div>
+                </div>
+                <Slider
+                  min={0}
+                  max={1}
+                  step={0.1}
+                  value={[temperature]}
+                  onValueChange={(value) => setTemperature(value[0])}
+                />
                 <span className="block text-sm text-muted-foreground italic leading-relaxed">
-                  Valores mais altor tendem a deixar o resultado mais criativo e
+                  Valores mais altos tendem a deixar o resultado mais criativo e
                   com possíveis erros.
                 </span>
               </section>
 
               <Separator />
 
-              <Button type="submit" className="w-full">
-                Executar
-                <Wand2 className="w-4 h-4 ml-2" />
+              <Button
+                disabled={!videoId || isLoading || !input}
+                type="submit"
+                className="w-full"
+              >
+                {!videoId ? (
+                  "Carregue um vídeo"
+                ) : isLoading ? (
+                  "Executando..."
+                ) : !input ? (
+                  "Selecione um prompt para a IA"
+                ) : (
+                  <>
+                    Executar
+                    <Wand2 className="h-4 w-4 ml-2" />
+                  </>
+                )}
               </Button>
             </form>
           </aside>
